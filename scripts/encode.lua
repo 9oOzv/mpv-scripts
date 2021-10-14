@@ -4,8 +4,23 @@ local options = require "mp.options"
 
 local ON_WINDOWS = (package.config:sub(1,1) ~= "/")
 
-local start_timestamp = nil
-local profile_start = ""
+local current_encode = {}
+
+function create_default_settings()
+    local default_settings = {
+        detached = true,
+        container = "",
+        only_active_tracks = false,
+        preserve_filters = true,
+        append_filter = "",
+        codec = "-an -sn -c:v libvpx -crf 10 -b:v 1000k",
+        output_format = "$f_$n.webm",
+        output_directory = "",
+        ffmpeg_command = "ffmpeg",
+        print = true,
+    }
+    return default_settings
+end
 
 -- implementation detail of the osd message
 local timer = nil
@@ -135,7 +150,23 @@ function seconds_to_time_string(seconds, full)
     return ret
 end
 
-function start_encoding(from, to, settings)
+function set_command()
+    local settings = current_encode.settings
+    local profile = current_encode.profile
+    local from = current_encode.from
+    local to = current_encode.to
+
+    if profile then
+        options.read_options(settings, profile)
+        if settings.container ~= "" then
+            msg.warn("The 'container' setting is deprecated, use 'output_format' now")
+            settings.output_format = settings.output_format .. "." .. settings.container
+        end
+        settings.profile = profile
+    else
+        settings.profile = "default"
+    end
+
     local args = {
         settings.ffmpeg_command,
         "-loglevel", "panic", "-hide_banner",
@@ -225,6 +256,14 @@ function start_encoding(from, to, settings)
         end
         print(o)
     end
+
+    current_encode.settings = settings
+    current_encode.command = args
+end
+
+function start_encode()
+    local settings = current_encode.settings
+    local args = current_encode.command
     if settings.detached then
         utils.subprocess_detached({ args = args })
     else
@@ -237,16 +276,58 @@ function start_encoding(from, to, settings)
     end
 end
 
-function clear_timestamp()
-    timer:kill()
-    start_timestamp = nil
-    profile_start = ""
+function clear_timer()
+    if timer then
+        timer:kill()
+    end
+    timer=nil
+end
+
+function reset()
+    clear_timer()
+    current_encode={}
     mp.remove_key_binding("encode-ESC")
     mp.remove_key_binding("encode-ENTER")
     mp.osd_message("", 0)
 end
 
-function set_timestamp(profile)
+function set_from()
+    local profile = current_encode.profile
+    current_encode.from = mp.get_property_number("time-pos")
+    local msg = function()
+        mp.osd_message(
+            string.format("encode [%s]: waiting for end timestamp", profile or "default"),
+            timer_duration
+        )
+    end
+    msg()
+    timer = mp.add_periodic_timer(timer_duration, msg)
+    mp.add_forced_key_binding("ESC", "encode-ESC", reset)
+    mp.add_forced_key_binding("ENTER", "encode-ENTER", function() main(profile) end)
+end
+
+function set_to()
+    local from = current_encode.from
+    local to = mp.get_property_number("time-pos")
+    if to <= from then
+        from, to = to, from
+    end
+    local msg = function()
+        mp.osd_message(string.format("Encoding from %s to %s"
+            , seconds_to_time_string(from, false)
+            , seconds_to_time_string(to, false)
+        ), timer_duration)
+    end
+    msg()
+    timer = mp.add_periodic_timer(timer_duration, msg)
+    -- include the current frame into the extract
+    local fps = mp.get_property_number("container-fps") or 30
+    to = to + 1 / fps / 2
+    current_encode.from = from
+    current_encode.to = to
+end
+
+function sanity_checks()
     if not mp.get_property("path") then
         mp.osd_message("No file currently playing")
         return
@@ -255,61 +336,29 @@ function set_timestamp(profile)
         mp.osd_message("Cannot encode non-seekable media")
         return
     end
+end
 
-    if not start_timestamp or profile ~= profile_start then
-        profile_start = profile
-        start_timestamp = mp.get_property_number("time-pos")
-        local msg = function()
-            mp.osd_message(
-                string.format("encode [%s]: waiting for end timestamp", profile or "default"),
-                timer_duration
-            )
-        end
-        msg()
-        timer = mp.add_periodic_timer(timer_duration, msg)
-        mp.add_forced_key_binding("ESC", "encode-ESC", clear_timestamp)
-        mp.add_forced_key_binding("ENTER", "encode-ENTER", function() set_timestamp(profile) end)
+function main(profile)
+    sanity_checks()
+    if not current_encode.from or profile ~= current_encode.profile then
+        init_encode(profile)
+        set_from()
+    elseif (not current_encode.to) then
+        clear_timer()
+        set_to()
+        set_command()
     else
-        local from = start_timestamp
-        local to = mp.get_property_number("time-pos")
-        if to <= from then
-            mp.osd_message("Second timestamp cannot be before the first", timer_duration)
-            timer:kill()
-            timer:resume()
-            return
-        end
-        clear_timestamp()
-        mp.osd_message(string.format("Encoding from %s to %s"
-            , seconds_to_time_string(from, false)
-            , seconds_to_time_string(to, false)
-        ), timer_duration)
-        -- include the current frame into the extract
-        local fps = mp.get_property_number("container-fps") or 30
-        to = to + 1 / fps / 2
-        local settings = {
-            detached = true,
-            container = "",
-            only_active_tracks = false,
-            preserve_filters = true,
-            append_filter = "",
-            codec = "-an -sn -c:v libvpx -crf 10 -b:v 1000k",
-            output_format = "$f_$n.webm",
-            output_directory = "",
-            ffmpeg_command = "ffmpeg",
-            print = true,
-        }
-        if profile then
-            options.read_options(settings, profile)
-            if settings.container ~= "" then
-                msg.warn("The 'container' setting is deprecated, use 'output_format' now")
-                settings.output_format = settings.output_format .. "." .. settings.container
-            end
-            settings.profile = profile
-        else
-            settings.profile = "default"
-        end
-        start_encoding(from, to, settings)
+        clear_timer()
+        start_encode()
+        reset()
     end
 end
 
-mp.add_key_binding(nil, "set-timestamp", set_timestamp)
+function init_encode(profile)
+    current_encode = {}
+    current_encode.settings = create_default_settings()
+    current_encode.profile = profile
+end
+
+
+mp.add_key_binding(nil, "set-timestamp", main)
