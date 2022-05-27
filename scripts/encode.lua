@@ -222,6 +222,11 @@ function get_input_info(default_path, only_active)
     print(mp.get_property("track-list"))
     for _, track in ipairs(mp.get_property_native("track-list")) do
         local filename = track["external-filename"] or default_path
+
+        if not (only_active and track["selected"] and accepted[track["type"]]) then
+            goto continue
+        end
+
         if string.find(filename, "edl://") then
             msg.info("Getting tracks from EDL. This feature may not work and it assumes a youtube source. EDL: " .. filename)
             local edl_tracks = tracks_from_edl(filename)
@@ -233,15 +238,14 @@ function get_input_info(default_path, only_active)
             ret[track_path] = { 0 }
             goto continue
         end
-        if not only_active or (track["selected"] and accepted[track["type"]]) then
-            local tracks = ret[filename]
-            if not tracks then
-                ret[filename] = { track["ff-index"] }
-            else
-                tracks[#tracks + 1] = track["ff-index"]
-            end
-            goto continue
+
+        local tracks = ret[filename]
+        if not tracks then
+            ret[filename] = { track["ff-index"] }
+        else
+            tracks[#tracks + 1] = track["ff-index"]
         end
+        goto continue
         ::continue::
     end
     return ret

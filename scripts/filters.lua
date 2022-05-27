@@ -55,7 +55,7 @@ mp.add_key_binding(nil, "toggle-scale-720", create_filter_toggle({
 
 
 function subtitle_stream_index()
-    return tostring(math.floor(mp.get_property("sub") - 1))
+    return tostring(math.floor(mp.get_property("current-tracks/sub/id")))
 end
 
 mp.add_key_binding(nil, "toggle-burn", (function()
