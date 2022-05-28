@@ -4,14 +4,27 @@ local options = require "mp.options"
 local overlay = mp.create_osd_overlay("ass-events")
 local names = {
     'vf',
+    'files',
 }
 local enabled = {}
 local f = {}
 local update_timer = nil
 
 f['vf'] = function(data)
-    data = data .. "\n"
-    data = data .. mp.get_property("vf")
+    data = data .. "# FILTERS" .. "\n"
+    data = data .. "vf: "
+    data = data .. mp.get_property("vf") .. "\n"
+    return data
+end
+
+f['files'] = function(data)
+    data = data .. "# FILES" .. "\n"
+    data = data .. "current-tracks/video/external-filename: " .. (mp.get_property("current-tracks/video/external-filename") or '') .. "\n"
+    data = data .. "current-tracks/audio/external-filename: " .. (mp.get_property("current-tracks/audio/external-filename") or '')  .. "\n"
+    data = data .. "current-tracks/sub/external-filename: " .. (mp.get_property("current-tracks/sub/external-filename") or '')  .. "\n"
+    data = data .. "current-tracks/sub2/external-filename: " .. (mp.get_property("current-tracks/sub2/external-filename") or '')  .. "\n"
+    data = data .. "path: " .. (mp.get_property("path") or '')  .. "\n"
+    data = data .. "stream-open-filename: " .. (mp.get_property("stream-open-filename") or '')  .. "\n"
     return data
 end
 
