@@ -21,6 +21,7 @@ local default_settings = {
     output_directory = "",
     ffmpeg_command = "ffmpeg",
     print = true,
+    ffmpeg_args = "$ffmpeg_command;-loglevel;verbose;-hide_banner;$tracks;-to;$delta_seconds;$codec;$video_filters;$output",
 }
 local settings = default_settings
 local current_profile = nil
@@ -308,11 +309,6 @@ function set_command()
     else
         settings.profile = "default"
     end
-    local args = {
-        settings.ffmpeg_command,
-        "-loglevel", "error", "-hide_banner",
-    }
-    local append_args = function(table) args = append_table(args, table) end
 
     local path = mp.get_property("path")
     local is_stream = not file_exists(path)
@@ -321,11 +317,10 @@ function set_command()
     end
 
     local track_args = {}
-    local start = seconds_to_time_string(from, false)
     local input_index = 0
     for input_path, tracks in pairs(get_input_info(path, settings.only_active_tracks)) do
-       append_args({
-            "-ss", start,
+       append_table(track_args, {
+            "-ss", seconds_to_time_string(from, false),
             "-i", input_path,
         })
         if settings.only_active_tracks then
@@ -338,24 +333,18 @@ function set_command()
         input_index = input_index + 1
     end
 
-    append_args({"-to", tostring(to-from)})
-    append_args(track_args)
-
-    -- apply some of the video filters currently in the chain
-    --local filters = {}
     local vf_string = ""
     if settings.preserve_filters then
         vf_string = get_vf_string()
     end
-    --if settings.append_filter ~= "" then
-    --    filters[#filters + 1] = settings.append_filter
-    --end
-    --if #filters > 0 then
-    --    append_args({ "-filter:v", table.concat(filters, ",") })
-    --end
 
-    if #vf_string > 0 then
-        append_args({ "-vf", vf_string})
+    args = {}
+    local append_args = function(table) args = append_table(args, table) end
+
+    -- split ffmpeg_args setting on semicolon
+    ffmpeg_args = {}
+    for token in string.gmatch(settings.ffmpeg_args, "[^;]+") do
+        ffmpeg_args[#ffmpeg_args + 1] = token
     end
     
     --local filters = ""
@@ -370,8 +359,9 @@ function set_command()
 
 
     -- split the user-passed settings on whitespace
+    codec_args = {}
     for token in string.gmatch(settings.codec, "[^%s]+") do
-        args[#args + 1] = token
+        codec_args[#codec_args + 1] = token
     end
 
     -- path of the output
@@ -393,7 +383,27 @@ function set_command()
         mp.osd_message("Invalid path " .. output_directory)
         return
     end
-    args[#args + 1] = utils.join_path(output_directory, output_name)
+    output = utils.join_path(output_directory, output_name)
+
+    for k, a in pairs(ffmpeg_args) do
+        if a == "$video_filters" then
+            if #vf_string > 0 then
+                append_args({ "-vf", vf_string})
+            end
+        elseif a == "$tracks" then
+            append_args( track_args)
+        elseif a == "$codec" then
+            append_args(codec_args)
+        else
+            a = string.gsub(a, "$t", to)
+            a = string.gsub(a, "$ffmpeg_command", settings.ffmpeg_command)
+            a = string.gsub(a, "$from_seconds", tostring(from))
+            a = string.gsub(a, "$to_seconds", tostring(to))
+            a = string.gsub(a, "$delta_seconds", tostring(to-from))
+            a = string.gsub(a, "$output", output)
+            append_args( {a,} )
+        end
+    end
 
     if settings.print then
         local o = ""
