@@ -88,14 +88,23 @@ mp.add_key_binding(nil, "toggle-scale-1080p", create_filter_toggle({
     }
 }))
 
-function burn_text()
+function burn_text(scale)
     local stream_index = tostring(math.floor(mp.get_property("current-tracks/sub/id") - 1))
+    if scale and scale ~= 1.0 then
+        params= {
+            si = stream_index,
+            filename = mp.get_property("path"),
+            force_style = 'ScaleX=' .. scale .. ',ScaleY=' .. scale,
+        }
+    else
+        params= {
+            si = stream_index,
+            filename = mp.get_property("path"),
+        }
+    end
     return toggle_filter({
             name="subtitles",
-            params= {
-                si = stream_index,
-                filename = mp.get_property("path"),
-            }
+            params = params,
     })
 end
 
@@ -119,7 +128,7 @@ function table.contains(table, element)
   return false
 end
 
-function burn_filter()
+function burn_filter(scale)
     local subs = mp.get_property_native("current-tracks/sub")
     if not subs then
         print("no subtitle track selected")
@@ -133,7 +142,7 @@ function burn_filter()
         return false
         --return burn_image()
     else
-        return burn_text()
+        return burn_text(scale)
     end
 end
 
@@ -145,24 +154,16 @@ mp.add_key_binding(nil, "toggle-burn", (function()
 end))
 
 mp.add_key_binding(nil, "toggle-burn-large", (function()
-    toggle_filter({
-            name="subtitles",
-            params= {
-                si = subtitle_stream_index(),
-                filename = mp.get_property("path"),
-                force_style = 'ScaleX=1.5,ScaleY=1.5',
-            }
-    })
+    local f = burn_filter(1.5)
+    if f then
+        toggle_filter(f)
+    end
 end))
 
 mp.add_key_binding(nil, "toggle-burn-huge", (function()
-    toggle_filter({
-            name="subtitles",
-            params= {
-                si = subtitle_stream_index(),
-                filename = mp.get_property("path"),
-                force_style = 'ScaleX=2,ScaleY=2',
-            }
-    })
+    local f = burn_filter(2.0)
+    if f then
+        toggle_filter(f)
+    end
 end))
 
