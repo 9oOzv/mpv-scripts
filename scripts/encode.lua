@@ -26,6 +26,7 @@ local default_settings = {
 local settings = default_settings
 local current_profile = nil
 local cooldown_timer = nil
+local overlay_style="{\\fs12}"
 
 function append_table(lhs, rhs)
     for i = 1,#rhs do
@@ -264,8 +265,26 @@ function seconds_to_time_string(seconds, full)
     return ret
 end
 
+function string:split(delimiter)
+  local result = { }
+  local from  = 1
+  local delim_from, delim_to = string.find( self, delimiter, from  )
+  while delim_from do
+    table.insert( result, string.sub( self, from , delim_from-1 ) )
+    from  = delim_to + 1
+    delim_from, delim_to = string.find( self, delimiter, from  )
+  end
+  table.insert( result, string.sub( self, from  ) )
+  return result
+end
+
 function set_overlay_text(text)
-    overlay.data = text
+    lines = string.split(text, "\n")
+    styled_text = ""
+    for k, l in pairs(lines) do
+        styled_text = styled_text .. overlay_style .. l .. "\n"
+    end
+    overlay.data = styled_text
     overlay:update()
 end
 
