@@ -10,6 +10,7 @@ local names = {
 local enabled = {}
 local f = {}
 local update_timer = nil
+local style="{\\fs12}"
 
 function dump(o, pretty, indentation)
     indentation = indentation or 0
@@ -68,8 +69,26 @@ f['current-tracks'] = function(data)
     return data
 end
 
+function string:split(delimiter)
+  local result = { }
+  local from  = 1
+  local delim_from, delim_to = string.find( self, delimiter, from  )
+  while delim_from do
+    table.insert( result, string.sub( self, from , delim_from-1 ) )
+    from  = delim_to + 1
+    delim_from, delim_to = string.find( self, delimiter, from  )
+  end
+  table.insert( result, string.sub( self, from  ) )
+  return result
+end
+
 function set_overlay_text(text)
-    overlay.data = text
+    lines = string.split(text, "\n")
+    styled_text = ""
+    for k, l in pairs(lines) do
+        styled_text = styled_text .. style .. l .. "\n"
+    end
+    overlay.data = styled_text
     overlay:update()
 end
 
