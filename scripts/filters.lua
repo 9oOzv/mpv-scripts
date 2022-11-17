@@ -70,7 +70,7 @@ end
 
 mp.add_key_binding(nil, "remove-all", remove_all)
 
-mp.add_key_binding(nil, "toggle-scale-720", create_filter_toggle({
+mp.add_key_binding(nil, "toggle-scale-720x720", create_filter_toggle({
     name="scale",
     params= {
         w = "720",
@@ -84,6 +84,15 @@ mp.add_key_binding(nil, "toggle-scale-1080p", create_filter_toggle({
     params= {
         w = "1920",
         h = "1080",
+        force_original_aspect_ratio = "decrease",
+    }
+}))
+
+mp.add_key_binding(nil, "toggle-scale-512x512", create_filter_toggle({
+    name="scale",
+    params= {
+        w = "512",
+        h = "512",
         force_original_aspect_ratio = "decrease",
     }
 }))
