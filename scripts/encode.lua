@@ -225,7 +225,10 @@ function get_input_info(default_path, only_active)
     for _, track in ipairs(mp.get_property_native("track-list")) do
         local filename = track["external-filename"] or default_path
 
-        if not (only_active and track["selected"] and accepted[track["type"]]) then
+        if only_active and not track["selected"] then
+            goto continue
+        end
+        if not accepted[track["type"]] then
             goto continue
         end
 
