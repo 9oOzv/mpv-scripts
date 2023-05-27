@@ -480,11 +480,10 @@ function set_end_timestamp()
         reset()
         return false
     end
-    start_timestamp = from
-    end_timestamp = to
     -- include the current frame into the extract
     local fps = mp.get_property_number("container-fps") or 30
     to = to + 1 / fps / 2
+    end_timestamp = to
 end
 
 function is_valid_media()
