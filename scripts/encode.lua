@@ -22,11 +22,26 @@ local default_settings = {
     ffmpeg_command = "ffmpeg",
     print = true,
     ffmpeg_args = "$ffmpeg_command;-loglevel;verbose;-hide_banner;$tracks;-to;$delta_seconds;$codec;$video_filters;$output",
+    menu_keys =
+        '1,2,3,4,5,6,7,8,9,0,' ..
+        'a,b,c,d,e,f,g,h,i,j,' ..
+        'k,l,m,n,o,p,q,r,s,t,' ..
+        'u,v,w,x,y,z',
+    profiles = 'dummyprofile1,dummyprofile2'
 }
 local settings = default_settings
 local current_profile = nil
 local cooldown_timer = nil
 local overlay_style="{\\fs12}"
+
+mp = mp
+
+
+function _read_options()
+    options.read_options(settings)
+    settings._menu_keys = string.split(settings.menu_keys, ",")
+    settings._profiles = string.split(settings.profiles, ",")
+end
 
 function append_table(lhs, rhs)
     for i = 1,#rhs do
@@ -320,7 +335,7 @@ function set_command()
     local from = start_timestamp
     local to = end_timestamp
     settings = default_settings
-    options.read_options(settings)
+    _read_options()
     if profile then
         options.read_options(settings, profile)
         if settings.container ~= "" then
@@ -454,6 +469,11 @@ function reset()
     end_timestamp = nil
     mp.remove_key_binding("encode-ESC")
     mp.remove_key_binding("encode-ENTER")
+    if settings._menu_keys ~= nil then
+        for _, key in ipairs(settings._menu_keys) do
+            mp.remove_key_binding("encode-" .. key)
+        end
+    end
     mp.osd_message("", 0)
     overlay.data = ""
     overlay:remove()
@@ -476,7 +496,7 @@ function set_end_timestamp()
     local from = start_timestamp
     local to = mp.get_property_number("time-pos")
     if to <= from then
-        mp.osd_message("Second timestamp cannot be before the first", timer_duration)
+        mp.osd_message("Second timestamp cannot be before the first", 2)
         reset()
         return false
     end
@@ -498,12 +518,21 @@ function is_valid_media()
     end
 end
 
-function select_profile()
-    bindings_repeat[opts.left_coarse]  = movement_func(-opts.coarse_movement, 0)
-end
-
 function cooldown()
     cooldown_timer = mp.add_timeout(2, reset)
+end
+
+function menu()
+    _read_options()
+    local lines = {}
+    mp.add_forced_key_binding("ESC", "encode-ESC", reset)
+    for i, p in ipairs(settings._profiles) do
+        local key = settings._menu_keys[i]
+        lines[i] = key .. ' - ' .. p  .. '\n'
+        mp.add_forced_key_binding(key, "encode-" .. key, function() encode(p) end)
+    end
+    local text = table.concat(lines, "\n")
+    set_overlay_text(text)
 end
 
 function encode(profile)
@@ -518,7 +547,7 @@ function encode(profile)
         set_end_timestamp()
         set_command()
     elseif (not profile) then
-        select_profile()
+        menu()
     elseif cooldown_timer then
         reset()
     else
@@ -528,3 +557,4 @@ function encode(profile)
 end
 
 mp.add_key_binding(nil, "trigger", encode)
+mp.add_key_binding(nil, "menu", menu)
