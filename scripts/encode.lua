@@ -21,7 +21,7 @@ local default_settings = {
     output_directory = "",
     ffmpeg_command = "ffmpeg",
     print = true,
-    ffmpeg_args = "$ffmpeg_command;-loglevel;verbose;-hide_banner;$tracks;-to;$delta_seconds;$codec;$video_filters;$output",
+    ffmpeg_args = "$ffmpeg_command;-loglevel;verbose;-hide_banner;$tracks;-to;$delta_seconds;$map_args;$codec;$video_filters;$output",
     menu_keys =
         '1,2,3,4,5,6,7,8,9,0,' ..
         'a,b,c,d,e,f,g,h,i,j,' ..
@@ -354,6 +354,7 @@ function set_command()
     end
 
     local track_args = {}
+    local map_args = {}
     local input_index = 0
     for input_path, tracks in pairs(get_input_info(path, settings.only_active_tracks)) do
        append_table(track_args, {
@@ -362,10 +363,10 @@ function set_command()
         })
         if settings.only_active_tracks then
             for _, track_index in ipairs(tracks) do
-                track_args = append_table(track_args, { "-map", string.format("%d:%d", input_index, track_index)})
+                map_args = append_table(map_args, { "-map", string.format("%d:%d", input_index, track_index)})
             end
         else
-            track_args = append_table(track_args, { "-map", tostring(input_index)})
+            map_args = append_table(map_args, { "-map", tostring(input_index)})
         end
         input_index = input_index + 1
     end
@@ -431,6 +432,8 @@ function set_command()
             append_args( track_args)
         elseif a == "$codec" then
             append_args(codec_args)
+        elseif a == "$map_args" then
+            append_args(map_args)
         else
             a = string.gsub(a, "$t", to)
             a = string.gsub(a, "$ffmpeg_command", settings.ffmpeg_command)
